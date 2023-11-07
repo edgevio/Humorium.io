@@ -1,0 +1,560 @@
+// pragma solidity ^ 0.8.0;// pragma solidity ^0.8.0;
+
+contract CSTIFTokens {
+    mapping(address => uint256) private balances;
+    mapping(address => bool) private authorizedMinters;
+    mapping(address => bool) private authorizedBurners;
+    bool private paused;
+
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+    event Mint(address indexed to, uint256 value);
+    event Burn(address indexed from, uint256 value);
+    event Pause();
+    event Unpause();
+
+    modifier onlyAuthorizedMinter() {
+        require(authorizedMinters[msg.sender], "Only authorized minters can call this function");
+        _;
+    }
+
+    modifier onlyAuthorizedBurner() {
+        require(authorizedBurners[msg.sender], "Only authorized burners can call this function");
+        _;
+    }
+
+    modifier whenNotPaused() {
+        require(!paused, "Contract is paused");
+        _;
+    }
+
+    constructor() {
+        paused = false;
+    }
+
+    function balanceOf(address account) public view returns (uint256) {
+        return balances[account];
+    }
+
+    function transfer(address recipient, uint256 amount) public whenNotPaused returns (bool) {
+        require(amount <= balances[msg.sender], "Insufficient balance");
+        balances[msg.sender] -= amount;
+        balances[recipient] += amount;
+        emit Transfer(msg.sender, recipient, amount);
+        return true;
+    }
+
+    function approve(address spender, uint256 amount) public whenNotPaused returns (bool) {
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transferFrom(address sender, address recipient, uint256 amount) public whenNotPaused returns (bool) {
+        require(amount <= balances[sender], "Insufficient balance");
+        require(amount <= allowed[sender][msg.sender], "Insufficient allowance");
+        balances[sender] -= amount;
+        balances[recipient] += amount;
+        allowed[sender][msg.sender] -= amount;
+        emit Transfer(sender, recipient, amount);
+        return true;
+    }
+
+    function mint(address to, uint256 amount) public onlyAuthorizedMinter whenNotPaused returns (bool) {
+        balances[to] += amount;
+        emit Mint(to, amount);
+        return true;
+    }
+
+    function burn(uint256 amount) public onlyAuthorizedBurner whenNotPaused returns (bool) {
+        require(amount <= balances[msg.sender], "Insufficient balance");
+        balances[msg.sender] -= amount;
+        emit Burn(msg.sender, amount);
+        return true;
+    }
+
+    function addAuthorizedMinter(address account) public whenNotPaused returns (bool) {
+        authorizedMinters[account] = true;
+        return true;
+    }
+
+    function removeAuthorizedMinter(address account) public whenNotPaused returns (bool) {
+        authorizedMinters[account] = false;
+        return true;
+    }
+
+    function addAuthorizedBurner(address account) public whenNotPaused returns (bool) {
+        authorizedBurners[account] = true;
+        return true;
+    }
+
+    function removeAuthorizedBurner(address account) public whenNotPaused returns (bool) {
+        authorizedBurners[account] = false;
+        return true;
+    }
+
+    function pauseContract() public whenNotPaused returns (bool) {
+        paused = true;
+        emit Pause();
+        return true;
+    }
+
+    function unpauseContract() public returns (bool) {
+        paused = false;
+        emit Unpause();
+        return true;
+    }
+}
+contract UpgradableContract {
+    address private _implementation;
+
+    event Upgraded(address indexed implementation);
+
+    function getImplementation() public view returns (address) {
+        return _implementation;
+    }
+
+    function upgrade(address newImplementation) public {
+        require(_implementation != newImplementation, "New implementation cannot be the same as the current one");
+        _implementation = newImplementation;
+        emit Upgraded(newImplementation);
+    }
+}
+
+
+contract CrySynthTIF {
+    string public name = "CrySynthTIF";
+    string public symbol = "CRSTIF";
+    uint8 public decimals = 18;
+    uint256 public totalSupply;
+
+  mapping(address => uint256) public balances;
+
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+
+  constructor(uint256 _initialSupply) {
+    totalSupply = _initialSupply;
+    balances[msg.sender] = _initialSupply;
+  }
+
+  function transfer(address _to, uint256 _amount) external returns(bool) {
+    require(balances[msg.sender] >= _amount, "Insufficient balance");
+    balances[msg.sender] -= _amount;
+    balances[_to] += _amount;
+        emit Transfer(msg.sender, _to, _amount);
+    return true;
+  }
+}
+
+contract AssetManagement {
+    address public indexFundAddress;
+  address[] public assets;
+
+  constructor(address _indexFundAddress) {
+    indexFundAddress = _indexFundAddress;
+  }
+
+  function addAsset(address _asset) external {
+    assets.push(_asset);
+  }
+
+  function removeAsset(address _asset) external {
+    for (uint256 i = 0; i < assets.length; i++) {
+      if (assets[i] == _asset) {
+        delete assets[i];
+        break;
+      }
+    }
+  }
+
+  function updateTokenization() external {
+    for (uint256 i = 0; i < assets.length; i++) {
+            uint256 assetValue = getTokenValue(assets[i]);
+      updateTokenBalance(assets[i], assetValue);
+    }
+  }
+
+  function getTokenValue(address _asset) internal returns(uint256) {
+    // implementation to get the value of the asset
+  }
+
+  function updateTokenBalance(address _asset, uint256 _value) internal {
+    // implementation to update token balance based on the asset value
+  }
+}
+
+contract IndexFund {
+    address public CSTIFTokenAddress;
+  mapping(address => uint256) public assetAllocations;
+
+    event AssetAdded(address indexed asset, uint256 allocation);
+    event AssetRemoved(address indexed asset, uint256 allocation);
+    event TokensMinted(address indexed recipient, uint256 amount);
+    event TokensBurned(address indexed sender, uint256 amount);
+
+  constructor(address _CSTIFTokenAddress) {
+    CSTIFTokenAddress = _CSTIFTokenAddress;
+  }
+
+  function addAsset(address _asset, uint256 _allocation) external {
+    require(_allocation > 0, "Allocation must be greater than zero");
+
+    assetAllocations[_asset] = _allocation;
+
+        emit AssetAdded(_asset, _allocation);
+  }
+
+  function removeAsset(address _asset) external {
+        uint256 allocation = assetAllocations[_asset];
+
+    require(allocation > 0, "Asset not found");
+
+    delete assetAllocations[_asset];
+
+        emit AssetRemoved(_asset, allocation);
+  }
+
+  function getAssetValue(address _asset) internal view returns(uint256) {
+    // implementation to get the value of the asset
+  }
+
+  function updateTokenAllocation(address _asset) internal {
+        uint256 currentAllocation = assetAllocations[_asset];
+        uint256 assetValue = getAssetValue(_asset);
+
+    // Update token allocation logic goes here
+  }
+
+  function mintTokens(address _recipient, uint256 _amount) internal {
+    // implementation to mint new tokens
+  }
+
+  function burnTokens(address _sender, uint256 _amount) internal {
+    // implementation to burn tokens
+  }
+}
+
+contract RedemptionCreation {
+    address public indexFundAddress;
+
+  constructor(address _indexFundAddress) {
+    indexFundAddress = _indexFundAddress;
+  }
+
+  function createTokens(uint256 _amount) external {
+    // Implementation for creating new tokens
+  }
+}
+// SPDX-License-Identifier: MIT
+pragma solidity ^ 0.8.0;
+
+contract CSTIF {
+  string public name;
+  string public symbol;
+  uint8 public decimals;
+  uint256 public totalSupply;
+
+  mapping(address => uint256) public balanceOf;
+  mapping(address => mapping(address => uint256)) public allowance;
+
+  event Transfer(address indexed from, address indexed to, uint256 value);
+  event Approval(address indexed owner, address indexed spender, uint256 value);
+
+  constructor() {
+    name = "CSTIF";
+    symbol = "CST";
+    decimals = 18;
+    totalSupply = 1000000 * 10 ** uint256(decimals);
+    balanceOf[msg.sender] = totalSupply;
+  }
+
+  function transfer(address to, uint256 value) external returns(bool) {
+    require(balanceOf[msg.sender] >= value, "Insufficient balance");
+    balanceOf[msg.sender] -= value;
+    balanceOf[to] += value;
+    emit Transfer(msg.sender, to, value);
+    return true;
+  }
+
+  function approve(address spender, uint256 value) external returns(bool) {
+    allowance[msg.sender][spender] = value;
+    emit Approval(msg.sender, spender, value);
+    return true;
+  }
+
+  function transferFrom(address from, address to, uint256 value) external returns(bool) {
+    require(balanceOf[from] >= value, "Insufficient balance");
+    require(allowance[from][msg.sender] >= value, "Insufficient allowance");
+    balanceOf[from] -= value;
+    balanceOf[to] += value;
+    allowance[from][msg.sender] -= value;
+    emit Transfer(from, to, value);
+    return true;
+  }
+}
+contract CrySynthTIF {
+    string public name = "CrySynthTIF";
+    string public symbol = "CRSTIF";
+    uint8 public decimals = 18;
+    uint256 public totalSupply;
+
+  mapping(address => uint256) public balances;
+
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+
+  constructor(uint256 _initialSupply) {
+    totalSupply = _initialSupply;
+    balances[msg.sender] = _initialSupply;
+  }
+
+  function transfer(address _to, uint256 _amount) external returns(bool) {
+    require(balances[msg.sender] >= _amount, "Insufficient balance");
+    balances[msg.sender] -= _amount;
+    balances[_to] += _amount;
+        emit Transfer(msg.sender, _to, _amount);
+    return true;
+  }
+}// Populate requests queue
+var requestsQueue = [];
+oracleContract.on("RandomNumberRequested", async (callerAddress, id) => {
+  requestsQueue.push({ callerAddress, id });
+});
+
+// Poll and process requests queue at intervals
+setInterval(async () => {
+  let processedRequests = 0;
+  // Process queue logic goes here
+}, SLEEP_TIME);
+pragma solidity ^ 0.8.0;
+pragma solidity ^0.8.0;
+
+contract WBTC {
+    mapping(address => uint256) private balances;
+    address private custodian;
+
+    event Deposit(address indexed from, uint256 amount);
+    event Withdrawal(address indexed to, uint256 amount);
+
+    constructor() {
+        custodian = msg.sender;
+    }
+
+    function deposit(uint256 amount) external {
+        require(amount > 0, "Amount must be greater than zero");
+        
+        balances[msg.sender] += amount;
+
+        emit Deposit(msg.sender, amount);
+    }
+
+    function withdraw(uint256 amount) external {
+        require(amount > 0, "Amount must be greater than zero");
+        require(balances[msg.sender] >= amount, "Insufficient balance");
+        
+        balances[msg.sender] -= amount;
+
+        emit Withdrawal(msg.sender, amount);
+    }
+
+    function balanceOf(address account) external view returns (uint256) {
+        return balances[account];
+    }
+}
+function transfer(address _to, uint256 _value) public {
+  require(_to != address(0), "Invalid recipient");
+  require(_value <= balances[msg.sender], "Insufficient balance");
+
+  balances[msg.sender] -= _value;
+  balances[_to] += _value;
+}
+
+contract CrySynthTIF {
+    string public name = "CrySynthTIF";
+    string public symbol = "CRSTIF";
+    uint8 public decimals = 18;
+    uint256 public totalSupply;
+
+  mapping(address => uint256) public balances;
+
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+
+  constructor(uint256 _initialSupply) {
+    totalSupply = _initialSupply;
+    balances[msg.sender] = _initialSupply;
+  }
+
+  function transfer(address _to, uint256 _amount) external returns(bool) {
+    require(_to != address(0), "Invalid recipient address");
+    require(_amount > 0, "Amount must be greater than zero");
+    require(balances[msg.sender] >= _amount, "Insufficient balance");
+
+    balances[msg.sender] -= _amount;
+    balances[_to] += _amount;
+
+        emit Transfer(msg.sender, _to, _amount);
+    return true;
+  }
+}
+
+pragma solidity ^ 0.8.0;
+
+contract AssetManagement {
+    address public indexFundAddress;
+  address[] public assets;
+
+  constructor(address _indexFundAddress) {
+    indexFundAddress = _indexFundAddress;
+  }
+
+  function addAsset(address _asset) external {
+    assets.push(_asset);
+  }
+
+  function removeAsset(address _asset) external {
+    for (uint256 i = 0; i < assets.length; i++) {
+      if (assets[i] == _asset) {
+        delete assets[i];
+        break;
+      }
+    }
+  }
+
+  function updateTokenization() external {
+    for (uint256 i = 0; i < assets.length; i++) {
+            uint256 assetValue = getTokenValue(assets[i]);
+      updateTokenBalance(assets[i], assetValue);
+    }
+  }
+
+  function getTokenValue(address _asset) internal returns(uint256) {
+    // implementation to get the value of the asset
+  }
+
+  function updateTokenBalance(address _asset, uint256 _value) internal {
+    // implementation to update token balance based on the asset value
+  }
+}
+pragma solidity ^ 0.8.0;
+
+contract IndexFund {
+    address public CSTIFTokenAddress;
+  mapping(address => uint256) public assetAllocations;
+
+    event AssetAdded(address indexed asset, uint256 allocation);
+    event AssetRemoved(address indexed asset, uint256 allocation);
+    event TokensMinted(address indexed recipient, uint256 amount);
+    event TokensBurned(address indexed sender, uint256 amount);
+
+  constructor(address _CSTIFTokenAddress) {
+    CSTIFTokenAddress = _CSTIFTokenAddress;
+  }
+
+  function addAsset(address _asset, uint256 _allocation) external {
+    require(_allocation > 0, "Allocation must be greater than zero");
+
+    assetAllocations[_asset] = _allocation;
+
+        emit AssetAdded(_asset, _allocation);
+  }
+
+  function removeAsset(address _asset) external {
+        uint256 allocation = assetAllocations[_asset];
+
+    require(allocation > 0, "Asset not found");
+
+    delete assetAllocations[_asset];
+
+        emit AssetRemoved(_asset, allocation);
+  }
+
+  function getAssetValue(address _asset) internal view returns(uint256) {
+    // implementation to get the value of the asset
+  }
+
+  function updateTokenAllocation(address _asset) internal {
+        uint256 currentAllocation = assetAllocations[_asset];
+        uint256 assetValue = getAssetValue(_asset);
+
+    // Update token allocation logic goes here
+  }
+
+  function mintTokens(address _recipient, uint256 _amount) internal {
+    // implementation to mint new tokens
+  }
+
+  function burnTokens(address _sender, uint256 _amount) internal {
+    // implementation to burn tokens
+  }
+}
+
+contract CrySynthTIF {
+    string public name = "CrySynthTIF";
+    string public symbol = "CRSTIF";
+    uint8 public decimals = 18;
+    uint256 public totalSupply;
+
+  mapping(address => uint256) public balances;
+
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+
+  constructor(uint256 _initialSupply) {
+    totalSupply = _initialSupply;
+    balances[msg.sender] = _initialSupply;
+  }
+
+  function transfer(address _to, uint256 _amount) external returns(bool) {
+    require(balances[msg.sender] >= _amount, "Insufficient balancepragma solidity ^0.8.0;
+
+contract RedemptionCreation {
+      address public indexFundAddress;
+
+      constructor(address _indexFundAddress) {
+        indexFundAddress = _indexFundAddress;
+      }
+
+    function createTokens(uint256 _amount) external {
+      // Implementation for creating new tokens based on demand
+    }
+
+    function redeemTokens(uint256 _amount) external {
+      // Implementation for redeeming tokens based on supply
+    }
+}
+  ");function redeemTokens(uint256 _amount) external {
+  require(_amount > 0, "Redemption amount must be greater than zero");
+
+    uint256 totalAssetValue = calculateTotalAssetValue();
+    uint256 contractBalance = CSTIFTokenAddress.balance;
+
+  for (uint256 i = 0; i < assets.length; i++) {
+        address asset = assets[i];
+        uint256 allocation = assetAllocations[asset];
+
+        uint256 assetValue = calculateAssetValue(asset);
+        uint256 share = (_amount * allocation) / totalAssetValue;
+        uint256 tokenAmount = (share * contractBalance) / assetValue;
+
+    tokens.burn(msg.sender, tokenAmount);
+    asset.transfer(msg.sender, share);
+  }
+}
+
+function calculateTotalAssetValue() internal view returns(uint256) {
+    uint256 totalValue = 0;
+
+  for (uint256 i = 0; i < assets.length; i++) {
+    totalValue += calculateAssetValue(assets[i]);
+  }
+
+  return totalValue;
+}
+
+function calculateAssetValue(address _asset) internal view returns(uint256) {
+  // Implementation to calculate the value of the asset goes here
+}
+
+balances[msg.sender] -= _amount;
+balances[_to] += _amount;
+        emit Transfer(msg.sender, _to, _amount);
+return true;
+    }
+}
